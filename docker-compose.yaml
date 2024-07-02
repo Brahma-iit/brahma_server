@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+
+  auth:
+    container_name: auth_service
+    restart: always
+    build:
+      context: ../auth
+      dockerfile: Dockerfile
+    ports:
+      - "9000:9000"
+
+  backend:
+    container_name: backend_service
+    restart: always
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "9001:9001"
+
+  otp:
+    container_name: otp_service
+    restart: always
+    build:
+      context: ../otp-service
+      dockerfile: Dockerfile
+    ports:
+      - "9002:9002"
+  
+  event_manager:
+   container_name: event_manager_service
+   restart: always
+   build:
+    context: ../backend-event-manager
+    dockerfile: Dockerfile
+   ports:
+    - "9003:9003"
+  
+  notification:
+    container_name: notification_service
+    restart: always
+    build:
+      context: ../notificaiton-service
+      dockerfile: Dockerfile
+    ports:
+      - "9004:9004"
+
+  nginx:
+    container_name: nginx_service
+    image: nginx:latest
+    restart: always
+    volumes:
+      - ../nginx/dev.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+     - "80:80"
+
