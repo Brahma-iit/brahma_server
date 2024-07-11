@@ -74,10 +74,27 @@ sudo cp -r ./bin fabric-network/
 # Install NPM dependencies for all sub-projects
 cd fabric-network
 npm install
-for dir in downloadEhr/javascript genLabReport/javascript genPrescription/javascript registerDoctor/javascript registerPatient/javascript registerStaff/javascript shareEhr/javascript uploadPrescription/javascript; do
-    cd $dir
-    npm install
-    cd ../../..
+
+# List of JavaScript directories to install dependencies
+declare -a js_dirs=("downloadEhr/javascript"
+                    "genLabReport/javascript"
+                    "genPrescription/javascript"
+                    "registerDoctor/javascript"
+                    "registerPatient/javascript"
+                    "registerStaff/javascript"
+                    "shareEhr/javascript"
+                    "uploadPrescription/javascript")
+
+for dir in "${js_dirs[@]}"; do
+    if [ -d "$dir" ]; then
+        echo "Navigating to $dir"
+        cd "$dir"
+        echo "Installing npm dependencies in $dir"
+        npm i
+        cd - > /dev/null
+    else
+        echo "Directory $dir does not exist. Skipping."
+    fi
 done
 
 # Start the Fabric network and add organization
@@ -103,7 +120,7 @@ cd ../nginx
 update_dev_conf_ip
 
 # Clone brahma_server repository and start Docker Compose
-git clone git@github.com:Brahma-iit/brahma_server.git ../brahma_server
+# git clone git@github.com:Brahma-iit/brahma_server.git ../brahma_server
 cd ../brahma_server
 sudo docker-compose up -d
 
