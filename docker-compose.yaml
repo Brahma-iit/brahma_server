@@ -86,8 +86,8 @@ services:
       - REDIS_PASSWORD=secretPassword
     ports:
       - "9001:9001"
-    # volumes:
-    #   - ../brahma_network:/ehr/brahma_network
+    volumes:
+      - ../fabric-network:/ehr/brahma_network/fabric-sample
 
   otp:
     container_name: otp_service

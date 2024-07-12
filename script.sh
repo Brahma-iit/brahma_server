@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CHANNEL_NAME="channel4000"
+CHANNEL_NAME="channel902"
 
 # Function to get IP address
 get_ip_address() {
@@ -51,28 +51,158 @@ update_dev_conf_ip() {
     sed -i "s|proxy_pass http://[0-9\.]\+:9004|proxy_pass http://$ip_address:9004|g" ../nginx/dev.conf
 }
 
+# Function to create the fabric configuration file with dynamic IP
+create_fabric_cc_template_json_config() {
+    ip_address=$(get_ip_address)
+    local file_path=$1
+    cat <<EOF > $file_path
+{
+    "name": "brahma-network-org\${ORG}",
+    "version": "1.0.0",
+    "client": {
+        "organization": "Org\${ORG}",
+        "connection": {
+            "timeout": {
+                "peer": {
+                    "endorser": "300"
+                }
+            }
+        }
+    },
+    "organizations": {
+        "Org\${ORG}": {
+            "mspid": "Org\${ORG}MSP",
+            "peers": [
+                "peer0.org\${ORG}.brahma.com",
+                "peer1.org\${ORG}.brahma.com"
+            ],
+            "certificateAuthorities": [
+                "ca.org\${ORG}.brahma.com"
+            ]
+        }
+    },
+    "peers": {
+        "peer0.org\${ORG}.brahma.com": {
+            "url": "grpcs://$ip_address:\${P0PORT}",
+            "tlsCACerts": {
+                "pem": "\${PEERPEM}"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.org\${ORG}.brahma.com",
+                "hostnameOverride": "peer0.org\${ORG}.brahma.com"
+            }
+        },
+        "peer1.org\${ORG}.brahma.com": {
+            "url": "grpcs://$ip_address:\${P1PORT}",
+            "tlsCACerts": {
+                "pem": "\${PEERPEM}"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer1.org\${ORG}.brahma.com",
+                "hostnameOverride": "peer1.org\${ORG}.brahma.com"
+            }
+        }
+    },
+    "certificateAuthorities": {
+        "ca.org\${ORG}.brahma.com": {
+            "url": "https://$ip_address:\${CAPORT}",
+            "caName": "ca-org\${ORG}",
+            "tlsCACerts": {
+                "pem": ["\${CAPEM}"]
+            },
+            "httpOptions": {
+                "verify": false
+            }
+        }
+    }
+}
+EOF
+}
+
+create_fabric_cc_template_yaml_config(){
+    ip_address=$(get_ip_address)
+    local file_path=$1
+    cat <<EOF > $file_path
+---
+name: brahma-network-org\${ORG}
+version: 1.0.0
+client:
+  organization: Org\${ORG}
+  connection:
+    timeout:
+      peer:
+        endorser: '300'
+organizations:
+  Org\${ORG}:
+    mspid: Org\${ORG}MSP
+    peers:
+    - peer0.org\${ORG}.brahma.com
+    - peer1.org\${ORG}.brahma.com
+    certificateAuthorities:
+    - ca.org\${ORG}.brahma.com
+peers:
+  peer0.org\${ORG}.brahma.com:
+    url: grpcs://$ip_address:\${P0PORT}
+    tlsCACerts:
+      pem: |
+          \${PEERPEM}
+    grpcOptions:
+      ssl-target-name-override: peer1.org\${ORG}.brahma.com
+      hostnameOverride: peer1.org\${ORG}.brahma.com
+
+  peer1.org\${ORG}.brahma.com:
+    url: grpcs://$ip_address:\${P1PORT}
+    tlsCACerts:
+      pem: |
+          \${PEERPEM}
+    grpcOptions:
+      ssl-target-name-override: peer1.org\${ORG}.brahma.com
+      hostnameOverride: peer1.org\${ORG}.brahma.com
+certificateAuthorities:
+  ca.org\${ORG}.brahma.com:
+    url: https://$ip_address:\${CAPORT}
+    caName: ca-org\${ORG}
+    tlsCACerts:
+      pem: 
+        - |
+          \${CAPEM}
+    httpOptions:
+      verify: false
+
+EOF
+}
+
 # Install necessary dependencies
 # sudo apt update
 # sudo apt install -y git docker.io docker-compose npm jq
 # sudo snap install go --classic
 
 cd ..
+
 # Install Hyperledger Fabric binaries and Docker images
 curl -sSLO https://raw.githubusercontent.com/hyperledger/fabric/main/scripts/install-fabric.sh && chmod +x install-fabric.sh
-./install-fabric.sh d b
+sudo ./install-fabric.sh d b
 
-# Clone the fabric-network repository
-git clone git@github.com:Brahma-iit/fabric-network.git
+mkdir brahma_network
+cd brahma_network
+# Clone the fabric-sample repository
+git clone git@github.com:Brahma-iit/fabric-sample.git
 if [ $? -ne 0 ]; then
-    echo "Failed to clone fabric-network repository"
+    echo "Failed to clone fabric-sample repository"
     exit 1
 fi
 
-# Copy binaries to fabric-network directory
-sudo cp -r ./bin fabric-network/
+cd ..
+
+# Copy binaries to fabric-sample directory
+sudo cp -r ./bin brahma_network/fabric-sample/
 
 # Install NPM dependencies for all sub-projects
-cd fabric-network
+cd brahma_network/fabric-sample
+create_fabric_cc_template_json_config brahma_network/organizations/ccp-template.json
+create_fabric_cc_template_json_config brahma_network/addOrg3/ccp-template.json
+create_fabric_cc_template_yaml_config brahma_network/organizations/ccp-template.yaml
+create_fabric_cc_template_yaml_config brahma_network/addOrg3/ccp-template.yaml
 npm install
 
 # List of JavaScript directories to install dependencies
@@ -106,6 +236,7 @@ for chaincode in registerPatient registerDoctor registerStaff genPrescription ge
     sudo ./deployChaincode.sh $CHANNEL_NAME $chaincode 1 1
 done
 
+cd ..
 # Clone Brahma repositories and create .env files
 for repo in auth backend backend-event-manager notificaiton-service otp-service; do
     git clone git@github.com:Brahma-iit/$repo.git ../$repo
@@ -122,5 +253,5 @@ update_dev_conf_ip
 # Clone brahma_server repository and start Docker Compose
 # git clone git@github.com:Brahma-iit/brahma_server.git ../brahma_server
 cd ../brahma_server
-sudo docker-compose up -d
+sudo docker-compose up -d --build
 
